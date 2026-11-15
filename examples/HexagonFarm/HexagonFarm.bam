@@ -1,0 +1,28 @@
+from <stdlib> import {malloc, free}
+
+from "../Hexagon/Hexagon" import *
+
+int hexagonCount;
+Hexagon *hexagons[];
+
+void init(int hexagonCount) {
+    self->hexagonCount = hexagonCount;
+    self->hexagons = malloc(sizeof(Hexagon *) * hexagonCount);
+    for (int i = 0; i < hexagonCount; i++) {
+        self->hexagons[i] = Hexagon_new(0);
+    }
+}
+
+void deinit() {
+    for (int i = 0; i < self->hexagonCount; i++) {
+        Hexagon_delete(self->hexagons[i]);
+    }
+}
+
+double totalArea() {
+    double runningTotal = 0;
+    for (int i = 0; i < self->hexagonCount; i++) {
+        runningTotal += Hexagon_area(self->hexagons[i]));
+    }
+    return runningTotal;
+}

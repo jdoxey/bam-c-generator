@@ -1,0 +1,11 @@
+double sideLength;
+
+void init(double sideLength) {
+    self->sideLength = sideLength;
+}
+
+double area() {
+    double threeTimesSqrtOfThreeAllOverTwo = 2.59807621135;
+    double area = threeTimesSqrtOfThreeAllOverTwo * self->sideLength * self->sideLength;
+    return area;
+}
