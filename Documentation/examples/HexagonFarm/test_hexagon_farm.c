@@ -5,7 +5,7 @@
 int main() {
     HexagonFarm *farm = HexagonFarm_new(3);
     for (int i = 0; i < farm->hexagonCount; i++) {
-        farm->hexagons[0]->sideLength = 10 + i;
+        farm->hexagons[i]->sideLength = 10 + i;
     }
     double totalArea = HexagonFarm_totalArea(farm);
     printf("HexagonFarm's total area: %f\n", totalArea);

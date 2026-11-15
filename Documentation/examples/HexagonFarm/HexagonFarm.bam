@@ -3,7 +3,7 @@ from <stdlib> import {malloc, free}
 from "../Hexagon/Hexagon" import *
 
 int hexagonCount;
-Hexagon *hexagons[];
+Hexagon **hexagons;
 
 void init(int hexagonCount) {
     self->hexagonCount = hexagonCount;
@@ -17,12 +17,13 @@ void deinit() {
     for (int i = 0; i < self->hexagonCount; i++) {
         Hexagon_delete(self->hexagons[i]);
     }
+    free(self->hexagons);
 }
 
 double totalArea() {
     double runningTotal = 0;
     for (int i = 0; i < self->hexagonCount; i++) {
-        runningTotal += Hexagon_area(self->hexagons[i]));
+        runningTotal += Hexagon_area(self->hexagons[i]);
     }
     return runningTotal;
 }

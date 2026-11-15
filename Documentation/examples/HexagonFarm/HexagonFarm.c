@@ -28,6 +28,7 @@ void HexagonFarm_deinit(HexagonFarm *self) {
     for (int i = 0; i < self->hexagonCount; i++) {
         Hexagon_delete(self->hexagons[i]);
     }
+    free(self->hexagons);
 }
 
 double HexagonFarm_totalArea(HexagonFarm *self) {

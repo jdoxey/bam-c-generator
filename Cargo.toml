@@ -1,0 +1,10 @@
+[package]
+name = "bam"
+version = "0.1.0"
+edition = "2021"
+description = "A cross-platform generator for C object code from .bam files"
+publish = false
+
+[[bin]]
+name = "bam"
+path = "src/main.rs"
