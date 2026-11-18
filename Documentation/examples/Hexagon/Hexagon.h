@@ -1,5 +1,5 @@
-# ifndef __HEXAGON_H__
-# define __HEXAGON_H__
+#ifndef BAM_GENERATED_HEXAGON_H
+#define BAM_GENERATED_HEXAGON_H
 
 typedef struct Hexagon_struct {
     double sideLength;
@@ -7,8 +7,8 @@ typedef struct Hexagon_struct {
 
 Hexagon *Hexagon_new(double sideLength);
 void Hexagon_init(Hexagon *self, double sideLength);
-void Hexagon_delete(Hexagon *hexagon);
+void Hexagon_delete(Hexagon *self);
 
-double Hexagon_area(Hexagon *hexagon);
+double Hexagon_area(Hexagon *self);
 
-#endif  // __HEXAGON_H__
+#endif  // BAM_GENERATED_HEXAGON_H

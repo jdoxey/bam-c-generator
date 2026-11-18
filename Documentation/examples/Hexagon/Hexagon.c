@@ -16,7 +16,6 @@ void Hexagon_init(Hexagon *self, double sideLength) {
 }
 
 void Hexagon_delete(Hexagon *self) {
-    // there's no deinit to call first
     free(self);
 }
 

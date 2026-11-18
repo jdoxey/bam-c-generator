@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod codegen;
 mod imports;
 mod parser;
 mod source;
@@ -110,13 +111,24 @@ fn run_generate(args: &[OsString]) -> u8 {
         }
     };
 
-    eprintln!(
-        "bam generate: parsed '{}' with {} field(s) and {} method(s); generation is not implemented yet",
-        project.root.display(),
-        object.fields.len(),
-        object.methods.len()
+    let generated = match codegen::generate(&project, &object) {
+        Ok(generated) => generated,
+        Err(error) => {
+            eprintln!("bam generate: {error}");
+            return EXIT_ERROR;
+        }
+    };
+    if let Err(error) = codegen::write(&generated) {
+        eprintln!("bam generate: {error}");
+        return EXIT_ERROR;
+    }
+
+    println!(
+        "Generated '{}' and '{}'",
+        generated.header_path.display(),
+        generated.source_path.display()
     );
-    EXIT_ERROR
+    EXIT_SUCCESS
 }
 
 fn is_flag(value: &OsString, short: &str, long: &str) -> bool {
