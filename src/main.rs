@@ -3,6 +3,10 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod imports;
+mod parser;
+mod source;
+
 const EXIT_SUCCESS: u8 = 0;
 const EXIT_ERROR: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -90,9 +94,27 @@ fn run_generate(args: &[OsString]) -> u8 {
         return EXIT_USAGE;
     }
 
+    let project = match imports::load_project(&input_path) {
+        Ok(project) => project,
+        Err(error) => {
+            eprintln!("bam generate: {error}");
+            return EXIT_ERROR;
+        }
+    };
+
+    let object = match parser::parse_root(&project) {
+        Ok(object) => object,
+        Err(error) => {
+            eprintln!("bam generate: {error}");
+            return EXIT_ERROR;
+        }
+    };
+
     eprintln!(
-        "bam generate: generation is not implemented yet (requested input: {})",
-        input_path.display()
+        "bam generate: parsed '{}' with {} field(s) and {} method(s); generation is not implemented yet",
+        project.root.display(),
+        object.fields.len(),
+        object.methods.len()
     );
     EXIT_ERROR
 }
