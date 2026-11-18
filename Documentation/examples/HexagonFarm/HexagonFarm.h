@@ -1,5 +1,5 @@
-#ifndef __HEXAGON_FARM_H__
-#define __HEXAGON_FARM_H__
+#ifndef BAM_GENERATED_HEXAGONFARM_H
+#define BAM_GENERATED_HEXAGONFARM_H
 
 #include "../Hexagon/Hexagon.h"
 
@@ -15,4 +15,4 @@ void HexagonFarm_deinit(HexagonFarm *self);
 
 double HexagonFarm_totalArea(HexagonFarm *self);
 
-#endif  // __HEXAGON_FARM_H__
+#endif  // BAM_GENERATED_HEXAGONFARM_H

@@ -72,7 +72,7 @@ double Hexagon_area(Hexagon *self);
 
 and `Hexagon.c`;
 ```c
-#include <stdlib.h> // malloc, free
+#include <stdlib.h>  // malloc, free
 
 #include "Hexagon.h"
 
@@ -123,3 +123,5 @@ if (heapFarm != NULL) {
 ```
 
 The `.bam` `deinit` method describes cleanup of resources owned by the object. The generated `delete` method provides the heap-object convenience that pairs deinitialization with freeing the object itself.
+
+Generate imported objects before the object that uses them. For the farm example, run `bam generate` on `Hexagon.bam` first, then on `HexagonFarm.bam`. Farm generation includes the generated Hexagon header but does not regenerate Hexagon's files.

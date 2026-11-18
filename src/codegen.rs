@@ -1,7 +1,8 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::imports::ProjectSources;
+use crate::imports::{ImportKind, LoadedModule, ProjectSources};
 use crate::parser::{Method, ObjectDefinition};
 use crate::source::SourceError;
 
@@ -28,14 +29,6 @@ pub fn generate(
                 "root source was not loaded".to_string(),
             )
         })?;
-    if !module.imports.is_empty() {
-        return Err(SourceError::new(
-            &module.source.path,
-            None,
-            "code generation for imports is not implemented yet".to_string(),
-        ));
-    }
-
     let type_name = module
         .source
         .path
@@ -57,11 +50,13 @@ pub fn generate(
         ));
     }
 
+    validate_object_dependencies(module)?;
+
     let header_path = module.source.path.with_extension("h");
     let source_path = module.source.path.with_extension("c");
     let guard = format!("BAM_GENERATED_{}_H", type_name.to_ascii_uppercase());
-    let header = render_header(type_name, &guard, object);
-    let source = render_source(type_name, &header_path, &module.source.text, object);
+    let header = render_header(type_name, &guard, object, module);
+    let source = render_source(type_name, &header_path, &module.source.text, object, module);
 
     Ok(GeneratedPair {
         header_path,
@@ -69,6 +64,25 @@ pub fn generate(
         header,
         source,
     })
+}
+
+fn validate_object_dependencies(module: &LoadedModule) -> Result<(), SourceError> {
+    for import in &module.imports {
+        if let ImportKind::Object { source_path, .. } = &import.kind {
+            let header_path = source_path.with_extension("h");
+            if !header_path.is_file() {
+                return Err(SourceError::new(
+                    &module.source.path,
+                    Some(import.location),
+                    format!(
+                        "generated dependency header '{}' is missing; generate its .bam file first",
+                        header_path.display()
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn write(pair: &GeneratedPair) -> Result<(), SourceError> {
@@ -82,9 +96,25 @@ fn write_one(path: &Path, contents: &str) -> Result<(), SourceError> {
     })
 }
 
-fn render_header(type_name: &str, guard: &str, object: &ObjectDefinition) -> String {
+fn render_header(
+    type_name: &str,
+    guard: &str,
+    object: &ObjectDefinition,
+    module: &LoadedModule,
+) -> String {
     let mut output = String::new();
     output.push_str(&format!("#ifndef {guard}\n#define {guard}\n\n"));
+    let mut seen_headers = HashSet::new();
+    for import in &module.imports {
+        if let ImportKind::Object { header_include, .. } = &import.kind {
+            if seen_headers.insert(header_include) {
+                output.push_str(&format!("#include \"{header_include}\"\n"));
+            }
+        }
+    }
+    if !seen_headers.is_empty() {
+        output.push('\n');
+    }
     output.push_str(&format!("typedef struct {type_name}_struct {{\n"));
     for field in &object.fields {
         output.push_str("    ");
@@ -126,9 +156,13 @@ fn render_source(
     header_path: &Path,
     source_text: &str,
     object: &ObjectDefinition,
+    module: &LoadedModule,
 ) -> String {
     let mut output = String::new();
-    output.push_str("#include <stdlib.h> // malloc, free\n\n");
+    for (header, symbols) in standard_includes(module) {
+        output.push_str(&format!("#include <{header}>  // {}\n", symbols.join(", ")));
+    }
+    output.push('\n');
     output.push_str(&format!(
         "#include \"{}\"\n\n",
         header_path.file_name().unwrap().to_string_lossy()
@@ -184,6 +218,37 @@ fn render_source(
     output
 }
 
+fn standard_includes(module: &LoadedModule) -> Vec<(String, Vec<String>)> {
+    // Allocation and deletion are generated even when the source does not
+    // explicitly import stdlib, so it is always the first standard include.
+    let mut includes = vec![(
+        "stdlib.h".to_string(),
+        vec!["malloc".to_string(), "free".to_string()],
+    )];
+
+    for import in &module.imports {
+        if let ImportKind::Standard {
+            symbols, c_header, ..
+        } = &import.kind
+        {
+            let index = includes
+                .iter()
+                .position(|(header, _)| header == c_header)
+                .unwrap_or_else(|| {
+                    includes.push((c_header.clone(), Vec::new()));
+                    includes.len() - 1
+                });
+            for symbol in symbols {
+                if !includes[index].1.contains(symbol) {
+                    includes[index].1.push(symbol.clone());
+                }
+            }
+        }
+    }
+
+    includes
+}
+
 fn method_prototype(type_name: &str, method: &Method) -> String {
     format!(
         "{} {}_{}({})",
@@ -235,8 +300,9 @@ fn is_c_identifier(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::imports::load_project;
+    use crate::imports::{load_project, ImportKind, ResolvedImport};
     use crate::parser::parse_root;
+    use crate::source::{SourceFile, SourceLocation};
 
     #[test]
     fn hexagon_generation_matches_reference_files() {
@@ -257,15 +323,82 @@ mod tests {
     }
 
     #[test]
-    fn rejects_importing_objects_until_dependency_generation_is_implemented() {
+    fn farm_generation_emits_dependencies_and_matches_reference_files() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let fixture = root.join("Documentation/examples/HexagonFarm/HexagonFarm.bam");
         let project = load_project(&fixture).expect("Farm imports load");
         let object = parse_root(&project).expect("Farm parses");
-        let error = generate(&project, &object).unwrap_err();
+        let generated = generate(&project, &object).expect("Farm generates after Hexagon");
 
-        assert!(error
-            .message
-            .contains("code generation for imports is not implemented"));
+        assert_eq!(
+            generated.header,
+            include_str!("../Documentation/examples/HexagonFarm/HexagonFarm.h")
+        );
+        assert_eq!(
+            generated.source,
+            include_str!("../Documentation/examples/HexagonFarm/HexagonFarm.c")
+        );
+        assert!(generated
+            .header
+            .contains("#include \"../Hexagon/Hexagon.h\""));
+        assert!(generated.source.contains("#include <stdlib.h>"));
+        assert_eq!(
+            generated.header_path,
+            root.join("Documentation/examples/HexagonFarm/HexagonFarm.h")
+        );
+        assert_eq!(
+            generated.source_path,
+            root.join("Documentation/examples/HexagonFarm/HexagonFarm.c")
+        );
+    }
+
+    #[test]
+    fn reports_when_an_imported_header_has_not_been_generated() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/bam-order-test");
+        let module = LoadedModule {
+            source: SourceFile {
+                path: root.join("Farm/Farm.bam"),
+                text: String::new(),
+            },
+            c_text: String::new(),
+            imports: vec![ResolvedImport {
+                location: SourceLocation { line: 1, column: 1 },
+                kind: ImportKind::Object {
+                    source_path: root.join("Dependency/Dependency.bam"),
+                    header_include: "../Dependency/Dependency.h".to_string(),
+                },
+            }],
+        };
+
+        let error = validate_object_dependencies(&module).unwrap_err();
+        assert!(error.message.contains("generate its .bam file first"));
+    }
+
+    #[test]
+    fn standard_imports_include_the_symbol_comment() {
+        let module = LoadedModule {
+            source: SourceFile {
+                path: PathBuf::from("Demo.bam"),
+                text: String::new(),
+            },
+            c_text: String::new(),
+            imports: vec![ResolvedImport {
+                location: SourceLocation { line: 1, column: 1 },
+                kind: ImportKind::Standard {
+                    module: "stdio".to_string(),
+                    symbols: vec!["printf".to_string(), "puts".to_string()],
+                    c_header: "stdio.h".to_string(),
+                },
+            }],
+        };
+
+        let object = ObjectDefinition {
+            source_path: module.source.path.clone(),
+            fields: Vec::new(),
+            methods: Vec::new(),
+        };
+        let source = render_source("Demo", Path::new("Demo.h"), "", &object, &module);
+        assert!(source.contains("#include <stdio.h>  // printf, puts\n"));
+        assert!(source.contains("#include <stdlib.h>  // malloc, free\n"));
     }
 }
